@@ -1,0 +1,70 @@
+-- ============================================================================
+-- Portal 4housing — Plantilla RLS por módulo (REFERENCIA, no ejecutar tal cual)
+-- ============================================================================
+-- Cuando se migre cada módulo al proyecto unificado, TODAS sus tablas
+-- (prefijadas según la convención) reciben este par de políticas.
+-- Reemplazar <tabla> por el nombre real y <sector> por el valor del enum:
+--   'fhcomercial' | 'labocomercial' | 'diseno' | 'planificacion'
+--   | 'compras' | 'logistica'
+--
+-- Regla de oro Etapa 1: el aislamiento es POR SECTOR. Quien tiene el sector
+-- ve y opera todo el módulo; quien no lo tiene no ve nada. La granularidad
+-- por cargo (ej. 'lectura' no escribe, ve_sueldos) se agrega después por
+-- tabla puntual usando cargo_en_sector() / permisos, sin cambiar este marco.
+-- ============================================================================
+
+-- alter table public.<tabla> enable row level security;
+--
+-- create policy <tabla>_select on public.<tabla>
+--   for select to authenticated
+--   using (public.tiene_sector('<sector>'));
+--
+-- create policy <tabla>_write on public.<tabla>
+--   for all to authenticated
+--   using (public.tiene_sector('<sector>'))
+--   with check (public.tiene_sector('<sector>'));
+
+-- ---------------------------------------------------------------------------
+-- Ejemplo concreto (módulo diseño):
+-- ---------------------------------------------------------------------------
+-- alter table public.diseno_proyectos enable row level security;
+--
+-- create policy diseno_proyectos_select on public.diseno_proyectos
+--   for select to authenticated
+--   using (public.tiene_sector('diseno'));
+--
+-- create policy diseno_proyectos_write on public.diseno_proyectos
+--   for all to authenticated
+--   using (public.tiene_sector('diseno'))
+--   with check (public.tiene_sector('diseno'));
+
+-- ---------------------------------------------------------------------------
+-- Variante con cargo (ejemplo: 'lectura' no escribe):
+-- ---------------------------------------------------------------------------
+-- create policy <tabla>_write on public.<tabla>
+--   for all to authenticated
+--   using (
+--     public.tiene_sector('<sector>')
+--     and coalesce(public.cargo_en_sector('<sector>'), '') <> 'lectura'
+--   )
+--   with check (
+--     public.tiene_sector('<sector>')
+--     and coalesce(public.cargo_en_sector('<sector>'), '') <> 'lectura'
+--   );
+
+-- ---------------------------------------------------------------------------
+-- Variante con flag jsonb (ejemplo real: ve_sueldos en planificación —
+-- se aplicaría sobre planificacion_valor_hora_hist y columnas de costo):
+-- ---------------------------------------------------------------------------
+-- create policy planificacion_valor_hora_hist_select
+--   on public.planificacion_valor_hora_hist
+--   for select to authenticated
+--   using (
+--     public.es_direccion()
+--     or exists (
+--          select 1 from public.perfiles_sector ps
+--           where ps.perfil_id = (select auth.uid())
+--             and ps.sector = 'planificacion'
+--             and coalesce((ps.permisos ->> 've_sueldos')::boolean, false)
+--        )
+--   );
