@@ -37,6 +37,9 @@
     '@media (prefers-color-scheme: dark){#fh-nav-menu{background:#1b2128;color:#e8ebee;border-color:#2c343d;}#fh-nav-menu a:hover{background:#1e3349;}}'
   ].join('');
 
+  // Evitar doble montaje si el script se incluye dos veces
+  if (document.getElementById('fh-nav')) { return; }
+
   var style = document.createElement('style');
   style.textContent = css;
 
@@ -75,12 +78,15 @@
     }
   });
 
+  root.appendChild(style);
   root.appendChild(btn);
   root.appendChild(menu);
 
   function montar() {
-    document.head.appendChild(style);
-    document.body.appendChild(root);
+    // Se monta en <html>, no en <body>: algunas apps (ej. la pantalla de
+    // login del CRM comercial) reescriben document.body.innerHTML y eso
+    // borraría el botón. Los hijos directos de <html> sobreviven.
+    document.documentElement.appendChild(root);
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', montar);
