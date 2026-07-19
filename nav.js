@@ -3,17 +3,23 @@
    Botón flotante de navegación entre módulos. Cada app lo incluye con:
      <script src="/portal/nav.js" defer></script>
    Links relativos al origen: sobrevive a un rename de la organización GitHub.
-   No depende de Supabase ni de sesión: son links estáticos (v1).
+   v2: filtra los módulos según los sectores del usuario (lee la sesión
+   compartida y consulta perfiles/perfiles_sector). Si no puede saberlo
+   (sin sesión, error de red), muestra todo: los links son inofensivos,
+   los datos los protege RLS.
    ============================================================================ */
 (function () {
   'use strict';
 
+  var SB_URL = 'https://wcpkpwxhqdcdljfwzcmy.supabase.co';
+  var SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjcGtwd3hocWRjZGxqZnd6Y215Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwNDM4NDAsImV4cCI6MjA5NjYxOTg0MH0.MSTk46VAwdAsn5qNBdrHmGIiLYyN-rAyAZC72xZW3D4';
+
   var MODULOS = [
-    { path: '/portal/',               nombre: 'Portal' },
-    { path: '/4housing-comercial/',   nombre: 'Comercial 4housing' },
-    { path: '/labo-comercial/',       nombre: 'Comercial LABO' },
-    { path: '/diseno-4housing/',      nombre: 'Diseño' },
-    { path: '/planificacion-taller/', nombre: 'Planificación' }
+    { path: '/portal/',               nombre: 'Portal',              sector: null },
+    { path: '/4housing-comercial/',   nombre: 'Comercial 4housing',  sector: 'fhcomercial' },
+    { path: '/labo-comercial/',       nombre: 'Comercial LABO',      sector: 'labocomercial' },
+    { path: '/diseno-4housing/',      nombre: 'Diseño',              sector: 'diseno' },
+    { path: '/planificacion-taller/', nombre: 'Planificación',       sector: 'planificacion' }
   ];
 
   // No mostrar el link de la app en la que ya estamos
@@ -22,6 +28,42 @@
   if (items.length === MODULOS.length) {
     // path no reconocido (ej. dominio propio a futuro): mostrar todo igual
     items = MODULOS;
+  }
+
+  // Token de la sesión compartida (supabase-js la guarda en localStorage
+  // con clave sb-<ref>-auth-token; mismo origen + mismo proyecto = misma sesión)
+  function tokenSesion() {
+    try {
+      var raw = window.localStorage.getItem('sb-wcpkpwxhqdcdljfwzcmy-auth-token');
+      if (!raw) return null;
+      var s = JSON.parse(raw);
+      return (s && s.access_token) || null;
+    } catch (e) { return null; }
+  }
+
+  // Consulta los sectores del usuario y poda el menú. Corre después de montar:
+  // el menú arranca completo y se filtra apenas llega la respuesta.
+  function filtrarPorPermisos() {
+    var token = tokenSesion();
+    if (!token) return;
+    var h = { apikey: SB_ANON, Authorization: 'Bearer ' + token };
+    Promise.all([
+      fetch(SB_URL + '/rest/v1/perfiles?select=activo,es_direccion', { headers: h }).then(function (r) { return r.json(); }),
+      fetch(SB_URL + '/rest/v1/perfiles_sector?select=sector', { headers: h }).then(function (r) { return r.json(); })
+    ]).then(function (res) {
+      var perfil = (Array.isArray(res[0]) && res[0][0]) || null;
+      var sectores = Array.isArray(res[1]) ? res[1].map(function (r) { return r.sector; }) : [];
+      if (!perfil || !perfil.activo) return;         // sin perfil activo: no filtrar
+      if (perfil.es_direccion) return;               // dirección ve todo
+      var menu = document.getElementById('fh-nav-menu');
+      if (!menu) return;
+      items.forEach(function (m) {
+        if (m.sector && sectores.indexOf(m.sector) < 0) {
+          var a = menu.querySelector('a[href="' + m.path + '"]');
+          if (a) a.remove();
+        }
+      });
+    }).catch(function () { /* sin red o error: el menú queda completo */ });
   }
 
   var css = [
@@ -87,6 +129,7 @@
     // login del CRM comercial) reescriben document.body.innerHTML y eso
     // borraría el botón. Los hijos directos de <html> sobreviven.
     document.documentElement.appendChild(root);
+    filtrarPorPermisos();
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', montar);
