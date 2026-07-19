@@ -1,0 +1,3 @@
+# Dumps de datos: NUNCA al repo (es público por GitHub Pages)
+sql/**/1[2]0_datos_*.sql
+sql/**/*_datos_*.sql
