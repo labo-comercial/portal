@@ -69,7 +69,7 @@
 <div class="wrap">
   <header id="hdr" hidden>
     <div class="brand"><h1>4housing</h1><span class="tag">PORTAL</span></div>
-    <div class="who"><span id="who-nombre"></span><button class="btn-ghost" id="btn-salir">Salir</button></div>
+    <div class="who"><span id="who-nombre"></span><a class="btn-ghost" id="lnk-admin" href="/portal/admin.html" hidden style="text-decoration:none">Usuarios</a><button class="btn-ghost" id="btn-salir">Salir</button></div>
   </header>
   <main id="main"><p class="msg">Cargando…</p></main>
 </div>
@@ -149,6 +149,7 @@ function vistaModulos(perfil, sectores){
   $hdr.hidden = false;
   document.getElementById('who-nombre').innerHTML =
     '<b>' + esc(perfil.nombre || perfil.email) + '</b>' + (perfil.es_direccion ? ' · dirección' : '');
+  document.getElementById('lnk-admin').hidden = !perfil.es_direccion;
 
   const cargoPor = {};
   sectores.forEach(s => { cargoPor[s.sector] = s.cargo; });
