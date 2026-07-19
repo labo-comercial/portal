@@ -41,15 +41,26 @@
     } catch (e) { return null; }
   }
 
+  // uid del usuario = claim "sub" del JWT (dirección ve todos los perfiles
+  // por RLS, así que hay que pedir explícitamente EL propio)
+  function uidDelToken(token) {
+    try {
+      var payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return payload.sub || null;
+    } catch (e) { return null; }
+  }
+
   // Consulta los sectores del usuario y poda el menú. Corre después de montar:
   // el menú arranca completo y se filtra apenas llega la respuesta.
   function filtrarPorPermisos() {
     var token = tokenSesion();
     if (!token) return;
+    var uid = uidDelToken(token);
+    if (!uid) return;
     var h = { apikey: SB_ANON, Authorization: 'Bearer ' + token };
     Promise.all([
-      fetch(SB_URL + '/rest/v1/perfiles?select=activo,es_direccion', { headers: h }).then(function (r) { return r.json(); }),
-      fetch(SB_URL + '/rest/v1/perfiles_sector?select=sector', { headers: h }).then(function (r) { return r.json(); })
+      fetch(SB_URL + '/rest/v1/perfiles?select=activo,es_direccion&id=eq.' + encodeURIComponent(uid), { headers: h }).then(function (r) { return r.json(); }),
+      fetch(SB_URL + '/rest/v1/perfiles_sector?select=sector&perfil_id=eq.' + encodeURIComponent(uid), { headers: h }).then(function (r) { return r.json(); })
     ]).then(function (res) {
       var perfil = (Array.isArray(res[0]) && res[0][0]) || null;
       var sectores = Array.isArray(res[1]) ? res[1].map(function (r) { return r.sector; }) : [];
